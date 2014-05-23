@@ -36,6 +36,25 @@ public class BankAccountActorTest {
 	final FiniteDuration d = Duration.create(5, TimeUnit.SECONDS);
 	final Timeout t = Timeout.durationToTimeout(d);
 
+	private static int taskCount = 10000;
+	private static int threadCount = 100;
+
+	static ExecutorService executorService;
+
+	static ActorSystem system;
+
+	@BeforeClass
+	public static void setup() {
+		system = ActorSystem.create();
+		executorService = Executors.newFixedThreadPool(threadCount);
+	}
+
+	@AfterClass
+	public static void teardown() {
+		executorService.shutdown();
+		JavaTestKit.shutdownActorSystem(system);
+	}
+
 	public static class BankTeller extends UntypedActor {
 
 		LoggingAdapter log = Logging.getLogger(getContext().system(), this);
@@ -50,7 +69,7 @@ public class BankAccountActorTest {
 		public void onReceive(Object msg) {
 
 			if (msg.equals("start")) {
-				accountA.tell(new BankAccount.Deposit(1000), getSelf());
+				accountA.tell(new BankAccount.Deposit(taskCount * 100), getSelf());
 				probe.tell("started", getSelf());
 
 			} else if (msg.equals(BankAccount.TransactionStatus.DONE)) {
@@ -58,7 +77,7 @@ public class BankAccountActorTest {
 				probe.tell("deposited", getSelf());
 				ActorRef txfr = getContext().actorOf(
 						Props.create(BankTransfer.class), "aToBtxfr");
-				txfr.tell(new BankTransfer.Transfer(accountA, accountB, 150),
+				txfr.tell(new BankTransfer.Transfer(accountA, accountB, 2),
 						getSelf());
 			} else if (msg.equals(BankTransfer.TransferStatus.DONE)) {
 				log.debug("txfr done");
@@ -74,28 +93,14 @@ public class BankAccountActorTest {
 
 	}
 
-	static ActorSystem system;
-
-	@BeforeClass
-	public static void setup() {
-		system = ActorSystem.create();
-	}
-
-	@AfterClass
-	public static void teardown() {
-		JavaTestKit.shutdownActorSystem(system);
-		system = null;
-	}
-
 	@Test
 	public void testSimultaneousDeposit() throws Exception {
-
-		final int threadCount = 100;
 
 		new JavaTestKit(system) {
 			{
 
-				final ActorRef accountA = system.actorOf(BankAccount.props(1, 0));
+				final ActorRef accountA = system.actorOf(BankAccount
+						.props(1, 0));
 
 				// the run() method needs to finish within 3 seconds
 				new Within(duration("30 seconds")) {
@@ -109,8 +114,8 @@ public class BankAccountActorTest {
 							@Override
 							public Boolean call() {
 								scala.concurrent.Future<Object> f = ask(
-										accountA,
-										new BankAccount.Deposit(depositAmt), t);
+										accountA, new BankAccount.Deposit(
+												depositAmt), t);
 								try {
 									Await.result(f, d);
 									return true;
@@ -123,9 +128,7 @@ public class BankAccountActorTest {
 						};
 
 						List<Callable<Boolean>> tasks = Collections.nCopies(
-								threadCount, task);
-						ExecutorService executorService = Executors
-								.newFixedThreadPool(threadCount);
+								taskCount, task);
 						List<Future<Boolean>> futures;
 						try {
 							futures = executorService.invokeAll(tasks);
@@ -143,7 +146,7 @@ public class BankAccountActorTest {
 									t);
 							double balance = (Double) Await.result(answer, d);
 							// Validate the number of exec tasks
-							Assert.assertEquals(threadCount, futures.size());
+							Assert.assertEquals(taskCount, futures.size());
 							Assert.assertEquals(tasks.size() * depositAmt,
 									balance, 1);
 						} catch (Exception e) {
