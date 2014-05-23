@@ -18,7 +18,6 @@ public class BankAccount {
 		else {
 			newAccountBalance = accountBalance - amount;
 			accountBalance = newAccountBalance;
-			
 			return true;
 		}
 
@@ -33,7 +32,6 @@ public class BankAccount {
 
 		else {
 			newAccountBalance = accountBalance + amount;
-			Thread.yield();
 			accountBalance = newAccountBalance;
 			return true;
 		}
