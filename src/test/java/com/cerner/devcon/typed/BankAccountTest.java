@@ -23,7 +23,7 @@ import akka.actor.TypedProps;
 
 public class BankAccountTest {
 
-	private static int taskCount = 10000;
+	private static int taskCount = 100000;
 	private static int threadCount = 100;
 
 	private static ExecutorService executorService;
@@ -40,7 +40,7 @@ public class BankAccountTest {
 		executorService.shutdown();
 	}
 
-	@Test
+//	@Test
 	public void testSimultaneousDeposit() throws Exception {
 
 		final BankAccount account = TypedActor.get(system).typedActorOf(BankAccountImpl.props(1, 0));
@@ -67,7 +67,7 @@ public class BankAccountTest {
 
 	}
 
-	@Test
+//	@Test
 	public void testSimultaneousTransfer() throws Exception {
 
 		final double startingBalance = 10 * taskCount;

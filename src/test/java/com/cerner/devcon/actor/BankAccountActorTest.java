@@ -2,7 +2,9 @@ package com.cerner.devcon.actor;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,8 +38,8 @@ public class BankAccountActorTest {
 	final FiniteDuration d = Duration.create(5, TimeUnit.SECONDS);
 	final Timeout t = Timeout.durationToTimeout(d);
 
-	private static int taskCount = 10000;
-	private static int threadCount = 100;
+	private static final int taskCount = 1000000;
+	private static final int threadCount = 100;
 
 	static ExecutorService executorService;
 
@@ -57,7 +59,9 @@ public class BankAccountActorTest {
 
 	public static class BankTeller extends UntypedActor {
 
-		LoggingAdapter log = Logging.getLogger(getContext().system(), this);
+		LoggingAdapter log = Logging.getLogger(getContext().system(), self());
+		
+		private final int tellerTxfrs = taskCount / threadCount;
 
 		private ActorRef accountA = getContext().actorOf(
 				BankAccount.props(1, 0));
@@ -65,6 +69,9 @@ public class BankAccountActorTest {
 				BankAccount.props(2, 0));
 
 		private ActorRef probe;
+		
+		private List<ActorRef> txfrs = new ArrayList<ActorRef>();
+		private int txfrCount = 0;
 
 		public void onReceive(Object msg) {
 
@@ -73,27 +80,33 @@ public class BankAccountActorTest {
 				probe.tell("started", getSelf());
 
 			} else if (msg.equals(BankAccount.TransactionStatus.DONE)) {
-				log.debug("deposit done");
+				log.info("deposit done");
 				probe.tell("deposited", getSelf());
-				ActorRef txfr = getContext().actorOf(
-						Props.create(BankTransfer.class), "aToBtxfr");
-				txfr.tell(new BankTransfer.Transfer(accountA, accountB, 2),
-						getSelf());
+				for (int i = 0; i < tellerTxfrs; i++) {
+					ActorRef txfr = getContext().actorOf(
+							Props.create(BankTransfer.class), "aToBtxfr" + i);
+					txfrs.add(txfr);
+					txfr.tell(new BankTransfer.Transfer(accountA, accountB, 2),
+							getSelf());
+				}
 			} else if (msg.equals(BankTransfer.TransferStatus.DONE)) {
 				log.debug("txfr done");
-				probe.tell("done", getSelf());
+				txfrs.remove(sender());
+				txfrCount++;
+				if (txfrCount % 100 == 0) log.info("Processed " + txfrCount + " txfrs");
+				if (txfrCount == tellerTxfrs) probe.tell("done", getSelf());
 			} else if (msg.equals(BankTransfer.TransferStatus.FAILED)) {
-				log.debug("txfr failed");
+				log.error("txfr failed");
 			} else if (msg instanceof ActorRef) {
 				probe = (ActorRef) msg;
 			} else {
-				log.debug("unknown msg");
+				log.error("unknown msg");
 			}
 		}
 
 	}
 
-	@Test
+//	@Test
 	public void testSimultaneousDeposit() throws Exception {
 
 		new JavaTestKit(system) {
@@ -167,30 +180,42 @@ public class BankAccountActorTest {
 		 * want to receive actor replies or use Within(), etc.
 		 */
 		new JavaTestKit(system) {
+
 			{
 				final Props props = Props.create(BankTeller.class);
-				final ActorRef teller = system.actorOf(props);
-
-				// can also use JavaTestKit “from the outside”
-				final JavaTestKit probe = new JavaTestKit(system);
-				// “inject” the probe by passing it to the test subject
-				// like a real resource would be passed in production
-				teller.tell(probe.getRef(), getRef());
+				
+				final Map<ActorRef, JavaTestKit> tellers = new HashMap<ActorRef, JavaTestKit>();
+				
+				for (int i = 0; i < threadCount; i ++) {
+					final ActorRef teller = system.actorOf(props);
+	
+					// can also use JavaTestKit “from the outside”
+					final JavaTestKit probe = new JavaTestKit(system);
+					// “inject” the probe by passing it to the test subject
+					// like a real resource would be passed in production
+					teller.tell(probe.getRef(), getRef());
+					tellers.put(teller, probe);
+				}
 
 				// the run() method needs to finish within 3 seconds
-				new Within(duration("2 seconds")) {
+				new Within(duration("2 minutes")) {
 					protected void run() {
 
-						teller.tell("start", getRef());
-						probe.expectMsgEquals(duration("1 seconds"), "started");
+						for(Map.Entry<ActorRef, JavaTestKit> entry : tellers.entrySet()) {
+							ActorRef teller = entry.getKey();
+							JavaTestKit probe = entry.getValue();
+							teller.tell("start", getRef());
+							probe.expectMsgEquals(duration("1 seconds"), "started");
+	
+							probe.expectMsgEquals(duration("1 seconds"),
+									"deposited");
+	
+							probe.expectMsgEquals(duration("2 minutes"), "done");
+						}
 
-						probe.expectMsgEquals(duration("1 seconds"),
-								"deposited");
-
-						probe.expectMsgEquals(duration("2 seconds"), "done");
-
+						System.out.println("Executed all txfrs");
 						// Will wait for the rest of the 3 seconds
-						expectNoMsg();
+//						expectNoMsg();
 					}
 				};
 			}

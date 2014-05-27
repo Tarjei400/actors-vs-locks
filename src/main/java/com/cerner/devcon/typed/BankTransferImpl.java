@@ -20,6 +20,7 @@ public class BankTransferImpl implements BankAccountTransfer {
 			BankAccount to) {
 		if (from.withdraw(amount).equals(TransactionStatus.DONE)) {
 			to.deposit(amount);
+			log.debug("txfr done");
 			return TransferStatus.DONE;
 		}
 		return TransferStatus.FAILED;
