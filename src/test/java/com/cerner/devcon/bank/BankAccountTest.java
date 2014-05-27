@@ -60,7 +60,7 @@ public class BankAccountTest {
 	@Test
 	public void testSimultaneousTransfer() throws Exception {
 
-		final double startingBalance = 1000000;
+		final double startingBalance = 10 * taskCount;
 		final BankAccount from = new BankAccount();
 		from.deposit(startingBalance);
 		final BankAccount to = new BankAccount();
@@ -91,7 +91,7 @@ public class BankAccountTest {
 	@Test
 	public void testSimultaneousTransferSynch() throws Exception {
 
-		final double startingBalance = 1000000;
+		final double startingBalance = 10 * taskCount;
 		final BankAccount from = new BankAccount();
 		from.deposit(startingBalance);
 		final BankAccount to = new BankAccount();
