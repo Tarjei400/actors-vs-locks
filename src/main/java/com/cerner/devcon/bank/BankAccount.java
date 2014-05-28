@@ -23,6 +23,7 @@ public class BankAccount {
 
 	}
 
+
 	public boolean deposit(double amount) {
 		double newAccountBalance;
 
