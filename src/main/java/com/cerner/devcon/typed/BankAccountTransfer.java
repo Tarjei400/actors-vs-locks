@@ -1,11 +1,10 @@
 package com.cerner.devcon.typed;
 
+import scala.concurrent.Future;
+
 public interface BankAccountTransfer {
 
-	public TransferStatus transfer(BankAccount from, double amount,
+	public Future<Boolean> transfer(BankAccount from, double amount,
 			BankAccount to) ;
 
-	public static enum TransferStatus {
-		DONE, FAILED;
-	}
 }

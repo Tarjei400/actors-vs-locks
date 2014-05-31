@@ -1,18 +1,15 @@
 package com.cerner.devcon.typed;
 
+import scala.concurrent.Future;
+
 
 
 public interface BankAccount {
 
-	public abstract TransactionStatus deposit(double amount);
+	public Future<Boolean> deposit(double amount);
 
-	public abstract TransactionStatus withdraw(double amount);
+	public Future<Boolean> withdraw(double amount);
 
-	double balance();
-	
-	public static enum TransactionStatus {
-		DONE, FAILED;
-	}
-
+	public Future<Double> balance();
 
 }

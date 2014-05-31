@@ -1,18 +1,20 @@
 package com.cerner.devcon.typed;
 
 
+import scala.concurrent.Future;
 import akka.actor.TypedActor;
 import akka.actor.TypedProps;
+import akka.dispatch.Futures;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import akka.japi.Creator;
 
-public class BankAccountImpl implements BankAccount {
+public class BankAccountTypedActor implements BankAccount {
 
 	
 	LoggingAdapter log = Logging.getLogger(TypedActor.context().system(), TypedActor.context().self());
 	 
-	public BankAccountImpl(int accountNumber, double balance) {
+	public BankAccountTypedActor(int accountNumber, double balance) {
 		this.accountNumber = accountNumber;
 		this.accountBalance = balance;
 	}
@@ -23,14 +25,14 @@ public class BankAccountImpl implements BankAccount {
 
 	// to withdraw funds from the account
 	@Override
-	public TransactionStatus withdraw(double amount) {
+	public Future<Boolean> withdraw(double amount) {
 		
 		
 		double newAccountBalance;
 
 		if (amount > accountBalance) {
 			// there are not enough funds in the account
-			return TransactionStatus.FAILED;
+			return Futures.successful(false);
 		}
 
 		else {
@@ -38,40 +40,40 @@ public class BankAccountImpl implements BankAccount {
 			accountBalance = newAccountBalance;
 
 			log.debug("bank withdraw done");
-			return TransactionStatus.DONE;
+			return Futures.successful(true);
 		}
 
 	}
 
 	@Override
-	public TransactionStatus deposit(double amount) {
+	public Future<Boolean> deposit(double amount) {
 		double newAccountBalance;
 
 		if (amount < 0.0) {
-			return TransactionStatus.FAILED; // can not deposit a negative amount
+			return Futures.successful(false); // can not deposit a negative amount
 		}
 
 		else {
 			newAccountBalance = accountBalance + amount;
 			accountBalance = newAccountBalance;
 			log.debug("sending bank deposit done");
-			return TransactionStatus.DONE;
+			return Futures.successful(true);
 		}
 
 	}
 
 	@Override
-	public double balance() {
+	public Future<Double> balance() {
 		log.debug("sending balance");
-		return this.accountBalance;
+		return Futures.successful(accountBalance);
 	}
 	
 	
-	public static TypedProps<BankAccountImpl> props(final int accountNumber, final double balance) {
-		return new TypedProps<BankAccountImpl>(BankAccount.class, new BankAccountCreator(accountNumber, balance));
+	public static TypedProps<BankAccountTypedActor> props(final int accountNumber, final double balance) {
+		return new TypedProps<BankAccountTypedActor>(BankAccount.class, new BankAccountCreator(accountNumber, balance));
 	}
 	
-	public static class BankAccountCreator implements Creator<BankAccountImpl> {
+	public static class BankAccountCreator implements Creator<BankAccountTypedActor> {
 		private final long serialVersionUID = 1L;
 		private int accountNumber;
 		private double balance;
@@ -82,8 +84,8 @@ public class BankAccountImpl implements BankAccount {
 		}
 		
 		@Override
-		public BankAccountImpl create() throws Exception {
-			return new BankAccountImpl(accountNumber, balance);
+		public BankAccountTypedActor create() throws Exception {
+			return new BankAccountTypedActor(accountNumber, balance);
 		}
 	}
 
