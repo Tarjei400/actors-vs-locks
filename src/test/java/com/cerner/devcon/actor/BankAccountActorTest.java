@@ -1,5 +1,8 @@
 package com.cerner.devcon.actor;
 
+import static akka.pattern.Patterns.*;
+import static org.junit.Assert.*;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,17 +15,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import scala.concurrent.Await;
 import scala.concurrent.duration.Duration;
 import scala.concurrent.duration.FiniteDuration;
-
-import com.cerner.devcon.actor.BankAccount;
-import com.cerner.devcon.actor.BankTransfer;
-
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
@@ -31,15 +29,18 @@ import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import akka.testkit.JavaTestKit;
 import akka.util.Timeout;
-import static akka.pattern.Patterns.*;
 
+/**
+ * Tests the UntypedActors
+ *
+ */
 public class BankAccountActorTest {
 
 	final FiniteDuration d = Duration.create(5, TimeUnit.SECONDS);
 	final Timeout t = Timeout.durationToTimeout(d);
 
-	private static final int taskCount = 1000000;
-	private static final int threadCount = 100;
+	private static final int taskCount = 100000;
+	private static final int threadCount = 1;
 
 	static ExecutorService executorService;
 
@@ -60,7 +61,7 @@ public class BankAccountActorTest {
 	public static class BankTeller extends UntypedActor {
 
 		LoggingAdapter log = Logging.getLogger(getContext().system(), self());
-		
+
 		private final int tellerTxfrs = taskCount / threadCount;
 
 		private ActorRef accountA = getContext().actorOf(
@@ -69,14 +70,15 @@ public class BankAccountActorTest {
 				BankAccount.props(2, 0));
 
 		private ActorRef probe;
-		
+
 		private List<ActorRef> txfrs = new ArrayList<ActorRef>();
 		private int txfrCount = 0;
 
 		public void onReceive(Object msg) {
 
 			if (msg.equals("start")) {
-				accountA.tell(new BankAccount.Deposit(taskCount * 100), getSelf());
+				accountA.tell(new BankAccount.Deposit(taskCount * 100),
+						getSelf());
 				probe.tell("started", getSelf());
 
 			} else if (msg.equals(BankAccount.TransactionStatus.DONE)) {
@@ -93,8 +95,12 @@ public class BankAccountActorTest {
 				log.debug("txfr done");
 				txfrs.remove(sender());
 				txfrCount++;
-				if (txfrCount % 100 == 0) log.info("Processed " + txfrCount + " txfrs");
-				if (txfrCount == tellerTxfrs) probe.tell("done", getSelf());
+				if (txfrCount % 100 == 0)
+					log.info("Processed " + txfrCount + " txfrs");
+				if (txfrCount == tellerTxfrs) {
+					log.info("Processed all txfrs");
+					probe.tell("done", getSelf());
+				}
 			} else if (msg.equals(BankTransfer.TransferStatus.FAILED)) {
 				log.error("txfr failed");
 			} else if (msg instanceof ActorRef) {
@@ -106,7 +112,7 @@ public class BankAccountActorTest {
 
 	}
 
-//	@Test
+	 @Test
 	public void testSimultaneousDeposit() throws Exception {
 
 		new JavaTestKit(system) {
@@ -133,7 +139,6 @@ public class BankAccountActorTest {
 									Await.result(f, d);
 									return true;
 								} catch (Exception e) {
-									// TODO Auto-generated catch block
 									e.printStackTrace();
 									return false;
 								}
@@ -159,12 +164,12 @@ public class BankAccountActorTest {
 									t);
 							double balance = (Double) Await.result(answer, d);
 							// Validate the number of exec tasks
-							Assert.assertEquals(taskCount, futures.size());
-							Assert.assertEquals(tasks.size() * depositAmt,
+							assertEquals(taskCount, futures.size());
+							assertEquals(tasks.size() * depositAmt,
 									balance, 1);
 						} catch (Exception e) {
-							// TODO Auto-generated catch block
 							e.printStackTrace();
+							fail(e.getMessage());
 						}
 
 					}
@@ -183,12 +188,12 @@ public class BankAccountActorTest {
 
 			{
 				final Props props = Props.create(BankTeller.class);
-				
+
 				final Map<ActorRef, JavaTestKit> tellers = new HashMap<ActorRef, JavaTestKit>();
-				
-				for (int i = 0; i < threadCount; i ++) {
+
+				for (int i = 0; i < threadCount; i++) {
 					final ActorRef teller = system.actorOf(props);
-	
+
 					// can also use JavaTestKit “from the outside”
 					final JavaTestKit probe = new JavaTestKit(system);
 					// “inject” the probe by passing it to the test subject
@@ -198,24 +203,26 @@ public class BankAccountActorTest {
 				}
 
 				// the run() method needs to finish within 3 seconds
-				new Within(duration("2 minutes")) {
+				new Within(duration("1 minutes")) {
 					protected void run() {
 
-						for(Map.Entry<ActorRef, JavaTestKit> entry : tellers.entrySet()) {
+						for (Map.Entry<ActorRef, JavaTestKit> entry : tellers
+								.entrySet()) {
 							ActorRef teller = entry.getKey();
 							JavaTestKit probe = entry.getValue();
 							teller.tell("start", getRef());
-							probe.expectMsgEquals(duration("1 seconds"), "started");
-	
-							probe.expectMsgEquals(duration("1 seconds"),
+							probe.expectMsgEquals(duration("1 second"),
+									"started");
+
+							probe.expectMsgEquals(duration("1 second"),
 									"deposited");
-	
-							probe.expectMsgEquals(duration("2 minutes"), "done");
+
+							probe.expectMsgEquals(duration("10 seconds"), "done");
 						}
 
 						System.out.println("Executed all txfrs");
 						// Will wait for the rest of the 3 seconds
-//						expectNoMsg();
+						// expectNoMsg();
 					}
 				};
 			}

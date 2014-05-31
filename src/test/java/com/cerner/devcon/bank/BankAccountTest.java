@@ -1,5 +1,7 @@
 package com.cerner.devcon.bank;
 
+import static org.junit.Assert.*;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -10,7 +12,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -21,8 +22,8 @@ import org.junit.Test;
  */
 public class BankAccountTest {
 
-	private static int taskCount = 1000;
-	private static int threadCount = 2;
+	private static int taskCount = 100000;
+	private static int threadCount = 1;
 
 	private static ExecutorService executorService;
 
@@ -60,7 +61,7 @@ public class BankAccountTest {
 		// Test that the account balance is now the total of all the deposits
 		// A smaller number than expected means some threads didn't see the
 		// right starting balance.
-		Assert.assertEquals(futures.size() * depositAmt,
+		assertEquals(futures.size() * depositAmt,
 				account.accountBalance, 1);
 
 	}
@@ -93,9 +94,9 @@ public class BankAccountTest {
 
 		// Validate that the ending balance is equal to the starting balance
 		// minus or plus the amount transferred
-		Assert.assertEquals(startingBalance - (futures.size() * transferAmt),
+		assertEquals(startingBalance - (futures.size() * transferAmt),
 				from.accountBalance, .5);
-		Assert.assertEquals(futures.size() * transferAmt, to.accountBalance, .5);
+		assertEquals(futures.size() * transferAmt, to.accountBalance, .5);
 
 	}
 
@@ -148,8 +149,8 @@ public class BankAccountTest {
 
 		// Validate that the ending balance of both accounts is the same as the
 		// starting balance
-		Assert.assertEquals(startingBalance, from.accountBalance, .5);
-		Assert.assertEquals(startingBalance, to.accountBalance, .5);
+		assertEquals(startingBalance, from.accountBalance, .5);
+		assertEquals(startingBalance, to.accountBalance, .5);
 
 	}
 
@@ -171,7 +172,7 @@ public class BankAccountTest {
 			resultList.add(future.get());
 		}
 		// Validate the number of exec tasks
-		Assert.assertEquals(tasks.size(), futures.size());
+		assertEquals(tasks.size(), futures.size());
 		return futures;
 	}
 

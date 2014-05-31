@@ -1,30 +1,31 @@
 package com.cerner.devcon.typed;
 
+import static org.junit.Assert.*;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import com.cerner.devcon.typed.BankAccount.TransactionStatus;
-import com.cerner.devcon.typed.BankAccountImpl;
-import com.cerner.devcon.typed.BankAccountTransfer.TransferStatus;
 
 import akka.actor.ActorSystem;
 import akka.actor.TypedActor;
 import akka.actor.TypedProps;
 
+import com.cerner.devcon.typed.BankAccount.TransactionStatus;
+import com.cerner.devcon.typed.BankAccountTransfer.TransferStatus;
+
 public class BankAccountTest {
 
 	private static int taskCount = 100000;
-	private static int threadCount = 100;
+	private static int threadCount = 1;
 
 	private static ExecutorService executorService;
 	static ActorSystem system;
@@ -38,9 +39,10 @@ public class BankAccountTest {
 	@AfterClass
 	public static void destroy() throws Exception {
 		executorService.shutdown();
+		system.shutdown();
 	}
 
-//	@Test
+	@Test
 	public void testSimultaneousDeposit() throws Exception {
 
 		final BankAccount account = TypedActor.get(system).typedActorOf(BankAccountImpl.props(1, 0));
@@ -53,21 +55,14 @@ public class BankAccountTest {
 			}
 		};
 		List<Callable<TransactionStatus>> tasks = Collections.nCopies(taskCount, task);
-		List<Future<TransactionStatus>> futures = executorService.invokeAll(tasks);
-		List<TransactionStatus> resultList = new ArrayList<TransactionStatus>(futures.size());
-		// Check for exceptions
-		for (Future<TransactionStatus> future : futures) {
-			// Throws an exception if an exception was thrown by the task.
-			resultList.add(future.get());
-		}
-		// Validate the number of exec tasks
-		Assert.assertEquals(taskCount, futures.size());
-		Assert.assertEquals(tasks.size() * depositAmt, account.balance(),
+
+		executeAll(tasks);
+		assertEquals(tasks.size() * depositAmt, account.balance(),
 				1);
 
 	}
 
-//	@Test
+	@Test
 	public void testSimultaneousTransfer() throws Exception {
 
 		final double startingBalance = 10 * taskCount;
@@ -83,18 +78,11 @@ public class BankAccountTest {
 			}
 		};
 		List<Callable<Boolean>> tasks = Collections.nCopies(taskCount, task);
-		List<Future<Boolean>> futures = executorService.invokeAll(tasks);
-		List<Boolean> resultList = new ArrayList<Boolean>(futures.size());
-		// Check for exceptions
-		for (Future<Boolean> future : futures) {
-			// Throws an exception if an exception was thrown by the task.
-			resultList.add(future.get());
-		}
-		// Validate the number of exec tasks
-		Assert.assertEquals(taskCount, futures.size());
-		Assert.assertEquals(startingBalance - (tasks.size() * transferAmt),
+
+		executeAll(tasks);
+		assertEquals(startingBalance - (tasks.size() * transferAmt),
 				from.balance(), .5);
-		Assert.assertEquals(tasks.size() * transferAmt, to.balance(), .5);
+		assertEquals(tasks.size() * transferAmt, to.balance(), .5);
 
 	}
 
@@ -141,18 +129,23 @@ public class BankAccountTest {
 			tasks.add(txfrTo.get(i));
 		}
 
-		List<Future<TransferStatus>> futures = executorService.invokeAll(tasks); // /DEADLOCK!!!
-		List<TransferStatus> resultList = new ArrayList<TransferStatus>(futures.size());
+		executeAll(tasks);
+		assertEquals(startingBalance, from.balance(), .5);
+		assertEquals(startingBalance, to.balance(), .5);
+
+	}
+
+	private <T> void executeAll(List<Callable<T>> tasks)
+			throws InterruptedException, ExecutionException {
+		List<Future<T>> futures = executorService.invokeAll(tasks); // /DEADLOCK!!!
+		List<T> resultList = new ArrayList<T>(futures.size());
 		// Check for exceptions
-		for (Future<TransferStatus> future : futures) {
+		for (Future<T> future : futures) {
 			// Throws an exception if an exception was thrown by the task.
 			resultList.add(future.get());
 		}
 		// Validate the number of exec tasks
-		Assert.assertEquals(taskCount * 2, futures.size());
-		Assert.assertEquals(startingBalance, from.balance(), .5);
-		Assert.assertEquals(startingBalance, to.balance(), .5);
-
+		assertEquals(tasks.size(), futures.size());
 	}
 
 }

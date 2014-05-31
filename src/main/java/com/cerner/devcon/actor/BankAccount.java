@@ -6,12 +6,14 @@ import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import akka.japi.Creator;
 
+/**
+ * BankAccount actor
+ * 
+ */
 public class BankAccount extends UntypedActor {
 
-
-
 	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
-	 
+
 	public BankAccount(int accountNumber, double balance) {
 		this.accountNumber = accountNumber;
 		this.accountBalance = balance;
@@ -54,11 +56,18 @@ public class BankAccount extends UntypedActor {
 
 	}
 
+	/**
+	 * Defines the behavior of the actor to be executed for each message.
+	 * Called asynchronously once per message delivered to the actors
+	 * mailbox.
+	 */
 	@Override
 	public void onReceive(Object msg) throws Exception {
+		// Check the message type to select behavior
 		if (msg instanceof Withdraw) {
 			withdraw(((Withdraw) msg).getAmount());
 			log.debug("sending bank withdraw done");
+			// respond async with successful response
 			sender().tell(TransactionStatus.DONE, getSelf());
 		} else if (msg instanceof Deposit) {
 			deposit(((Deposit) msg).getAmount());
@@ -67,14 +76,13 @@ public class BankAccount extends UntypedActor {
 		} else if (msg instanceof BalanceRequest) {
 			log.debug("sending balance");
 			sender().tell(this.accountBalance, getSelf());
-		} 
-
-	}
-	
-	 public static class BalanceRequest {
+		}
 
 	}
 
+	public static class BalanceRequest {
+
+	}
 
 	public static class Withdraw {
 		private double amount;
@@ -103,21 +111,21 @@ public class BankAccount extends UntypedActor {
 	public static enum TransactionStatus {
 		DONE, FAILED;
 	}
-	
+
 	public static Props props(final int accountNumber, final double balance) {
 		return Props.create(new BankAccountCreator(accountNumber, balance));
 	}
-	
+
 	public static class BankAccountCreator implements Creator<BankAccount> {
 		private final long serialVersionUID = 1L;
 		private int accountNumber;
 		private double balance;
 
 		public BankAccountCreator(final int accountNumber, final double balance) {
-			this.accountNumber =accountNumber;
+			this.accountNumber = accountNumber;
 			this.balance = balance;
 		}
-		
+
 		@Override
 		public BankAccount create() throws Exception {
 			return new BankAccount(accountNumber, balance);

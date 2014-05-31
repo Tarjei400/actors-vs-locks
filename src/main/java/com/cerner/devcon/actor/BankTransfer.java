@@ -8,10 +8,19 @@ import akka.event.LoggingAdapter;
 import akka.japi.Creator;
 import akka.japi.Procedure;
 
+/**
+ * BankTransfer actor encapsulates behavior and state to perform 
+ * a single transaction.  
+ *
+ */
 public class BankTransfer extends UntypedActor {
 	
 	 LoggingAdapter log = Logging.getLogger(getContext().system(), this);
 
+	/** 
+	 * Handles just the Transfer message.  Uses become() to transition behavior as the
+	 * state of the transaction changes.
+	 */
 	@Override
 	public void onReceive(Object msg) throws Exception {
 		if (msg instanceof Transfer) {
