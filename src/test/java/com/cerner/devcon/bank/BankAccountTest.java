@@ -22,7 +22,7 @@ import org.junit.Test;
 public class BankAccountTest {
 
 	private static int taskCount = 1000;
-	private static int threadCount = 1;
+	private static int threadCount = 2;
 
 	private static ExecutorService executorService;
 
