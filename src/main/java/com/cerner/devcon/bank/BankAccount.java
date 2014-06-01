@@ -17,9 +17,15 @@ public class BankAccount {
 
 		else {
 			// calculate the new balance from the old. Race condition occurs
-			// when the next two lines are interleaved between 2 or more
-			// threads.
+			// when the next lines are interleaved between 2 or more
+			// threads.  Sleeping may be required to slow things down enough.
 			newAccountBalance = accountBalance - amount;
+//			try {
+//				Thread.sleep(100);
+//			} catch (InterruptedException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
 			accountBalance = newAccountBalance;
 			return true;
 		}
@@ -35,9 +41,15 @@ public class BankAccount {
 
 		else {
 			// calculate the new balance from the old. Race condition occurs
-			// when the next two lines are interleaved between 2 or more
-			// threads.
+			// when the next lines are interleaved between 2 or more
+			// threads.  Sleeping may be required to slow things down enough.
 			newAccountBalance = accountBalance + amount;
+//			try {
+//				Thread.sleep(100);
+//			} catch (InterruptedException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
 			accountBalance = newAccountBalance;
 			return true;
 		}
