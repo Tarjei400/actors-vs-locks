@@ -51,6 +51,7 @@ public class TypedActorBankAccountTest {
 	 * Create the ActorSystem once per test. ActorSystems contain global
 	 * configuration and resources (ie, thread pools).
 	 * 
+	 * The executer thread pool is only used for simulating client requests.
 	 * 
 	 * @throws Exception
 	 */
@@ -66,20 +67,31 @@ public class TypedActorBankAccountTest {
 		executorService.shutdown();
 	}
 
+	/**
+	 * Test simultaneous deposits sent to a single actor. Threads simulate
+	 * clients and tasks are divided between them.
+	 * 
+	 * @throws Exception
+	 */
 	@Test
 	public void testSimultaneousDeposit() throws Exception {
 		log.info("started deposits");
+		// Create a TypedActor
+		// A dynamic proxy is returned that wraps the interaction with the
+		// ActorRef
 		final BankAccount account = TypedActor.get(system).typedActorOf(
 				BankAccountTypedActor.props(1, 0));
 		final double depositAmt = 100;
+
 		Callable<Boolean> task = new Callable<Boolean>() {
 			@Override
 			public Boolean call() {
 				List<Future<Boolean>> futures = new ArrayList<Future<Boolean>>();
+				// Each client sends its workload to the ActorRef in nonblocking
+				// calls, so that they are executed in parallel.
 				for (int i = 0; i < taskCount / threadCount; i++) {
 					futures.add(account.deposit(depositAmt));
 				}
-
 				Iterable<Boolean> results = awaitAll(futures);
 				for (Boolean result : results) {
 					assertTrue(result);
@@ -88,9 +100,9 @@ public class TypedActorBankAccountTest {
 			}
 		};
 
-
 		List<Boolean> results = executeTasks(task);
 
+		// Validate the results.
 		for (Boolean result : results) {
 			assertTrue(result);
 		}
@@ -100,11 +112,21 @@ public class TypedActorBankAccountTest {
 		log.info("finished deposits");
 	}
 
+	/**
+	 * Test simultaneous transfers between 2 actors. Threads simulate clients
+	 * and tasks are divided between them.
+	 * 
+	 * @throws Exception
+	 */
 	@Test
 	public void testSimultaneousTransferActor() throws Exception {
 
 		log.info("started transfers");
 		final double startingBalance = 10 * taskCount;
+
+		// Create 2 TypedActors
+		// A dynamic proxy is returned that wraps the interaction with the
+		// ActorRef
 		final BankAccount from = TypedActor.get(system).typedActorOf(
 				BankAccountTypedActor.props(1, 0));
 		from.deposit(startingBalance);
@@ -117,8 +139,12 @@ public class TypedActorBankAccountTest {
 			@Override
 			public Boolean call() {
 				List<Future<Boolean>> futures = new ArrayList<Future<Boolean>>();
+
+				// Each client sends its workload to the ActorRef in nonblocking
+				// calls, so that they are executed in parallel.
 				for (int i = 0; i < taskCount / threadCount / 2; i++) {
 
+					// Create two transfers, one in each direction
 					final BankAccountTransfer txfr = TypedActor.get(system)
 							.typedActorOf(
 									new TypedProps<BankTransferTypedActor>(
@@ -142,9 +168,9 @@ public class TypedActorBankAccountTest {
 			}
 		};
 
-
 		List<Boolean> results = executeTasks(task);
 
+		// Validate the results.
 		for (Boolean result : results) {
 			assertTrue(result);
 		}
@@ -167,17 +193,16 @@ public class TypedActorBankAccountTest {
 
 	}
 
-	private <T> List<T> executeTasks(
-			Callable<T> task) throws InterruptedException, ExecutionException {
+	private <T> List<T> executeTasks(Callable<T> task)
+			throws InterruptedException, ExecutionException {
 		List<Callable<T>> tasks = Collections.nCopies(threadCount, task);
 		List<T> results = executeAllTasks(tasks);
 
 		return results;
 	}
 
-	private <T> List<T> executeAllTasks(
-			List<Callable<T>> tasks) throws InterruptedException,
-			ExecutionException {
+	private <T> List<T> executeAllTasks(List<Callable<T>> tasks)
+			throws InterruptedException, ExecutionException {
 		List<java.util.concurrent.Future<T>> futures = executorService
 				.invokeAll(tasks);
 		List<T> resultList = new ArrayList<T>(futures.size());

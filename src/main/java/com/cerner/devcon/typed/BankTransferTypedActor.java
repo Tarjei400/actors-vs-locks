@@ -8,11 +8,22 @@ import akka.dispatch.Mapper;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 
+/**
+ * BankTransfer TypedActor impl
+ * 
+ * Note that it doesn't require implementing or extending any Akka class.
+ * 
+ */
 public class BankTransferTypedActor implements BankAccountTransfer {
 
 	LoggingAdapter log = Logging.getLogger(TypedActor.context().system(),
 			TypedActor.context().self());
 
+	/**
+	 * Send a withdraw message and when it completes send the deposit message.
+	 * Return the future from deposit as the transfer result. None of these
+	 * actions will block.
+	 */
 	@Override
 	public Future<Boolean> transfer(final BankAccount from,
 			final double amount, final BankAccount to) {

@@ -16,13 +16,15 @@ public class BankAccount {
 		}
 
 		else {
+			// calculate the new balance from the old. Race condition occurs
+			// when the next two lines are interleaved between 2 or more
+			// threads.
 			newAccountBalance = accountBalance - amount;
 			accountBalance = newAccountBalance;
 			return true;
 		}
 
 	}
-
 
 	public boolean deposit(double amount) {
 		double newAccountBalance;
@@ -32,6 +34,9 @@ public class BankAccount {
 		}
 
 		else {
+			// calculate the new balance from the old. Race condition occurs
+			// when the next two lines are interleaved between 2 or more
+			// threads.
 			newAccountBalance = accountBalance + amount;
 			accountBalance = newAccountBalance;
 			return true;

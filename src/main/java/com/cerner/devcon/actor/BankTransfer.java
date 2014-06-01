@@ -9,31 +9,44 @@ import akka.japi.Creator;
 import akka.japi.Procedure;
 
 /**
- * BankTransfer actor encapsulates behavior and state to perform 
- * a single transaction.  
- *
+ * BankTransfer actor encapsulates behavior and state to perform a single
+ * transaction.
+ * 
+ * It is designed as a finite state machine (FSM) which starts in a state that
+ * is waiting for a transfer message and transitions through other states as it
+ * completes the transaction.
  */
 public class BankTransfer extends UntypedActor {
-	
-	 LoggingAdapter log = Logging.getLogger(getContext().system(), this);
 
-	/** 
-	 * Handles just the Transfer message.  Uses become() to transition behavior as the
-	 * state of the transaction changes.
+	LoggingAdapter log = Logging.getLogger(getContext().system(), this);
+
+	/**
+	 * Handles just the Transfer message.
+	 * 
+	 * Uses become() to transition behavior as the state of the transaction
+	 * changes. Note the lack of state in the actor, as it passes the state
+	 * along with the new behavior that the actor becomes.
 	 */
 	@Override
 	public void onReceive(Object msg) throws Exception {
 		if (msg instanceof Transfer) {
 			log.debug("received transfer message");
 			Transfer txfr = (Transfer) msg;
+			// Send an async msg to the from account to withdraw
 			txfr.from.tell(new BankAccount.Withdraw(txfr.getAmount()),
 					getSelf());
+			// Change the behavior of the actor to wait for the result of the
+			// withdrawal
 			getContext().become(
 					new AwaitFrom(txfr.to, txfr.amount, getSender()));
 		}
 
 	}
 
+	/**
+	 * Class that defines behavior of the actor while it is awaiting a response
+	 * from the From account.
+	 */
 	private class AwaitFrom implements Procedure<Object> {
 
 		private ActorRef to;
@@ -68,6 +81,10 @@ public class BankTransfer extends UntypedActor {
 
 	};
 
+	/**
+	 * Class that defines behavior of the actor while it is awaiting a response
+	 * from the To account.
+	 */
 	private class AwaitTo implements Procedure<Object> {
 
 		private ActorRef customer;
@@ -96,7 +113,6 @@ public class BankTransfer extends UntypedActor {
 		}
 
 	};
-
 
 	public static class Transfer {
 		private double amount;

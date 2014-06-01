@@ -9,6 +9,12 @@ import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import akka.japi.Creator;
 
+/**
+ * BankAccount TypedActor impl
+ * 
+ * Note that it doesn't require implementing or extending any Akka class.
+ *
+ */
 public class BankAccountTypedActor implements BankAccount {
 
 	
@@ -69,10 +75,21 @@ public class BankAccountTypedActor implements BankAccount {
 	}
 	
 	
+	/**
+	 * static method to ease actor creation for clients
+	 * 
+	 * @param accountNumber
+	 * @param balance
+	 * @return
+	 */
 	public static TypedProps<BankAccountTypedActor> props(final int accountNumber, final double balance) {
 		return new TypedProps<BankAccountTypedActor>(BankAccount.class, new BankAccountCreator(accountNumber, balance));
 	}
 	
+	/**
+	 * Creator required by Akka to create the actor
+	 *
+	 */
 	public static class BankAccountCreator implements Creator<BankAccountTypedActor> {
 		private final long serialVersionUID = 1L;
 		private int accountNumber;

@@ -72,9 +72,11 @@ public class BankAccount extends UntypedActor {
 		} else if (msg instanceof Deposit) {
 			deposit(((Deposit) msg).getAmount());
 			log.debug("sending bank deposit done");
+			// respond async with successful response
 			sender().tell(TransactionStatus.DONE, getSelf());
 		} else if (msg instanceof BalanceRequest) {
 			log.debug("sending balance");
+			// respond async with successful response
 			sender().tell(this.accountBalance, getSelf());
 		}
 
