@@ -19,12 +19,12 @@ public class BankAccount extends UntypedActor {
 		this.accountBalance = balance;
 	}
 
-	int accountNumber;
+	private int accountNumber;
 
-	double accountBalance;
+	private double accountBalance;
 
 	// to withdraw funds from the account
-	public boolean withdraw(double amount) {
+	private boolean withdraw(double amount) {
 		double newAccountBalance;
 
 		if (amount > accountBalance) {
@@ -41,7 +41,7 @@ public class BankAccount extends UntypedActor {
 
 	}
 
-	public boolean deposit(double amount) {
+	private boolean deposit(double amount) {
 		double newAccountBalance;
 
 		if (amount < 0.0) {
