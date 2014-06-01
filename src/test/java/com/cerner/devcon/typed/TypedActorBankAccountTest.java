@@ -4,7 +4,12 @@ import static akka.dispatch.Futures.*;
 import static org.junit.Assert.*;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.AfterClass;
@@ -21,36 +26,44 @@ import scala.concurrent.duration.FiniteDuration;
 import akka.actor.ActorSystem;
 import akka.actor.TypedActor;
 import akka.actor.TypedProps;
+import akka.dispatch.Futures;
 import akka.util.Timeout;
 
 /**
- * Typed Actor test to demonstrate safely handling concurrent state modification
+ * Typed Actor test to demonstrate safely handling concurrent state
+ * modification.
  * 
  */
 public class TypedActorBankAccountTest {
 
-	private static final Logger log = LoggerFactory.getLogger(TypedActorBankAccountTest.class);
-	
+	private static final Logger log = LoggerFactory
+			.getLogger(TypedActorBankAccountTest.class);
+
 	final FiniteDuration d = Duration.create(10, TimeUnit.SECONDS);
 	final Timeout t = Timeout.durationToTimeout(d);
 	private static int taskCount = 100000;
+	private static int threadCount = 1;
 	static ActorSystem system;
+
+	private static ExecutorService executorService;
 
 	/**
 	 * Create the ActorSystem once per test. ActorSystems contain global
 	 * configuration and resources (ie, thread pools).
-	 *
+	 * 
 	 * 
 	 * @throws Exception
 	 */
 	@BeforeClass
 	public static void init() throws Exception {
 		system = ActorSystem.create();
+		executorService = Executors.newFixedThreadPool(threadCount);
 	}
 
 	@AfterClass
 	public static void destroy() throws Exception {
 		system.shutdown();
+		executorService.shutdown();
 	}
 
 	@Test
@@ -59,13 +72,29 @@ public class TypedActorBankAccountTest {
 		final BankAccount account = TypedActor.get(system).typedActorOf(
 				BankAccountTypedActor.props(1, 0));
 		final double depositAmt = 100;
-		List<Future<Boolean>> futures = new ArrayList<Future<Boolean>>();
-		for (int i = 0; i < taskCount; i++) {
-			futures.add(account.deposit(depositAmt));
-		}
+		Callable<Boolean> task = new Callable<Boolean>() {
+			@Override
+			public Boolean call() {
+				List<Future<Boolean>> futures = new ArrayList<Future<Boolean>>();
+				for (int i = 0; i < taskCount / threadCount; i++) {
+					futures.add(account.deposit(depositAmt));
+				}
 
-		awaitAll(futures);
-		assertEquals(futures.size() * depositAmt,
+				Iterable<Boolean> results = awaitAll(futures);
+				for (Boolean result : results) {
+					assertTrue(result);
+				}
+				return true;
+			}
+		};
+
+
+		List<Boolean> results = executeTasks(task);
+
+		for (Boolean result : results) {
+			assertTrue(result);
+		}
+		assertEquals(taskCount * depositAmt,
 				Await.result(account.balance(), d), 1);
 
 		log.info("finished deposits");
@@ -84,36 +113,82 @@ public class TypedActorBankAccountTest {
 		to.deposit(startingBalance);
 		final double transferAmt = 1;
 
-		List<Future<Boolean>> futures = new ArrayList<Future<Boolean>>();
-		for (int i = 0; i < taskCount / 2; i++) {
+		Callable<Boolean> task = new Callable<Boolean>() {
+			@Override
+			public Boolean call() {
+				List<Future<Boolean>> futures = new ArrayList<Future<Boolean>>();
+				for (int i = 0; i < taskCount / threadCount / 2; i++) {
 
-			final BankAccountTransfer txfr = TypedActor.get(system)
-					.typedActorOf(
-							new TypedProps<BankTransferTypedActor>(
-									BankAccountTransfer.class,
-									BankTransferTypedActor.class));
+					final BankAccountTransfer txfr = TypedActor.get(system)
+							.typedActorOf(
+									new TypedProps<BankTransferTypedActor>(
+											BankAccountTransfer.class,
+											BankTransferTypedActor.class));
 
-			final BankAccountTransfer txfr2 = TypedActor.get(system)
-					.typedActorOf(
-							new TypedProps<BankTransferTypedActor>(
-									BankAccountTransfer.class,
-									BankTransferTypedActor.class));
-			futures.add(txfr.transfer(from, transferAmt, to));
-			futures.add(txfr2.transfer(to, transferAmt, from));
+					final BankAccountTransfer txfr2 = TypedActor.get(system)
+							.typedActorOf(
+									new TypedProps<BankTransferTypedActor>(
+											BankAccountTransfer.class,
+											BankTransferTypedActor.class));
+					futures.add(txfr.transfer(from, transferAmt, to));
+					futures.add(txfr2.transfer(to, transferAmt, from));
+				}
+
+				Iterable<Boolean> results = awaitAll(futures);
+				for (Boolean result : results) {
+					assertTrue(result);
+				}
+				return true;
+			}
+		};
+
+
+		List<Boolean> results = executeTasks(task);
+
+		for (Boolean result : results) {
+			assertTrue(result);
 		}
-
-		awaitAll(futures);
 		assertEquals(startingBalance, Await.result(from.balance(), d), .5);
 		assertEquals(startingBalance, Await.result(to.balance(), d), .5);
 
 		log.info("finished transfers");
 
 	}
-	
-	private <T> void awaitAll(List<Future<T>> futures) throws Exception {
-		final ExecutionContext ec = system.dispatcher();
-		Await.result(sequence(futures, ec), d);
 
+	private <T> Iterable<T> awaitAll(List<Future<T>> futures) {
+		final ExecutionContext ec = system.dispatcher();
+		try {
+			return Await.result(sequence(futures, ec), d);
+		} catch (Exception e) {
+			e.printStackTrace();
+			fail(e.getMessage());
+		}
+		return null;
+
+	}
+
+	private <T> List<T> executeTasks(
+			Callable<T> task) throws InterruptedException, ExecutionException {
+		List<Callable<T>> tasks = Collections.nCopies(threadCount, task);
+		List<T> results = executeAllTasks(tasks);
+
+		return results;
+	}
+
+	private <T> List<T> executeAllTasks(
+			List<Callable<T>> tasks) throws InterruptedException,
+			ExecutionException {
+		List<java.util.concurrent.Future<T>> futures = executorService
+				.invokeAll(tasks);
+		List<T> resultList = new ArrayList<T>(futures.size());
+		// Check for exceptions
+		for (java.util.concurrent.Future<T> future : futures) {
+			// Throws an exception if an exception was thrown by the task.
+			resultList.add(future.get());
+		}
+		// Validate the number of exec tasks
+		assertEquals(tasks.size(), resultList.size());
+		return resultList;
 	}
 
 }

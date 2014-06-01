@@ -36,13 +36,15 @@ import akka.util.Timeout;
  */
 public class UntypedActorBankAccountTest {
 
-	private static final Logger log = LoggerFactory.getLogger(UntypedActorBankAccountTest.class);
-	
+	private static final Logger log = LoggerFactory
+			.getLogger(UntypedActorBankAccountTest.class);
+
 	final FiniteDuration d = Duration.create(10, TimeUnit.SECONDS);
 	final Timeout t = Timeout.durationToTimeout(d);
 
 	private static final int taskCount = 100000;
-	private static final int numTellers = 2;
+	// numTellers must be a factor of taskCount / 2 for the work to be divided
+	private static final int numTellers = 1;
 
 	static ActorSystem system;
 
@@ -142,7 +144,12 @@ public class UntypedActorBankAccountTest {
 						}
 
 						try {
-							awaitAll(futures);
+							Iterable<Object> results = awaitAll(futures);
+							for (Object result : results) {
+								assertEquals(
+										BankAccount.TransactionStatus.DONE,
+										result);
+							}
 							Future<Object> answer = ask(accountA,
 									new BankAccount.BalanceRequest(), t);
 							double balance = (Double) Await.result(answer, d);
@@ -215,9 +222,15 @@ public class UntypedActorBankAccountTest {
 		};
 	}
 
-	private <T> void awaitAll(List<Future<T>> futures) throws Exception {
+	private <T> Iterable<T> awaitAll(List<Future<T>> futures) {
 		final ExecutionContext ec = system.dispatcher();
-		Await.result(sequence(futures, ec), d);
+		try {
+			return Await.result(sequence(futures, ec), d);
+		} catch (Exception e) {
+			e.printStackTrace();
+			fail(e.getMessage());
+		}
+		return null;
 
 	}
 }

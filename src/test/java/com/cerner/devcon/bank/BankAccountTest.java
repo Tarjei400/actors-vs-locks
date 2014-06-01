@@ -9,7 +9,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -56,12 +55,15 @@ public class BankAccountTest {
 			}
 		};
 		// Execute all the deposits on the thread pool
-		List<Future<Boolean>> futures = executeTasks(task);
+		List<Boolean> results = executeTasks(task);
 
+		for (Boolean result : results) {
+			assertTrue(result);
+		}
 		// Test that the account balance is now the total of all the deposits
 		// A smaller number than expected means some threads didn't see the
 		// right starting balance.
-		assertEquals(futures.size() * depositAmt,
+		assertEquals(results.size() * depositAmt,
 				account.accountBalance, 1);
 
 	}
@@ -90,13 +92,16 @@ public class BankAccountTest {
 		};
 
 		// Execute all transfers on the thread pool
-		List<Future<Boolean>> futures = executeTasks(task);
+		List<Boolean> results = executeTasks(task);
 
+		for (Boolean result : results) {
+			assertTrue(result);
+		}
 		// Validate that the ending balance is equal to the starting balance
 		// minus or plus the amount transferred
-		assertEquals(startingBalance - (futures.size() * transferAmt),
+		assertEquals(startingBalance - (results.size() * transferAmt),
 				from.accountBalance, .5);
-		assertEquals(futures.size() * transferAmt, to.accountBalance, .5);
+		assertEquals(results.size() * transferAmt, to.accountBalance, .5);
 
 	}
 
@@ -145,8 +150,11 @@ public class BankAccountTest {
 			tasks.add(txfrTo.get(i));
 		}
 
-		List<Future<Boolean>> futures = executeAllTasks(tasks);
+		List<Boolean> results = executeAllTasks(tasks);
 
+		for (Boolean result : results) {
+			assertTrue(result);
+		}
 		// Validate that the ending balance of both accounts is the same as the
 		// starting balance
 		assertEquals(startingBalance, from.accountBalance, .5);
@@ -154,26 +162,28 @@ public class BankAccountTest {
 
 	}
 
-	private List<Future<Boolean>> executeTasks(Callable<Boolean> task)
-			throws InterruptedException, ExecutionException {
-		List<Callable<Boolean>> tasks = Collections.nCopies(taskCount, task);
-		List<Future<Boolean>> futures = executeAllTasks(tasks);
+	private <T> List<T> executeTasks(
+			Callable<T> task) throws InterruptedException, ExecutionException {
+		List<Callable<T>> tasks = Collections.nCopies(threadCount, task);
+		List<T> results = executeAllTasks(tasks);
 
-		return futures;
+		return results;
 	}
 
-	private List<Future<Boolean>> executeAllTasks(List<Callable<Boolean>> tasks)
-			throws InterruptedException, ExecutionException {
-		List<Future<Boolean>> futures = executorService.invokeAll(tasks);
-		List<Boolean> resultList = new ArrayList<Boolean>(futures.size());
+	private <T> List<T> executeAllTasks(
+			List<Callable<T>> tasks) throws InterruptedException,
+			ExecutionException {
+		List<java.util.concurrent.Future<T>> futures = executorService
+				.invokeAll(tasks);
+		List<T> resultList = new ArrayList<T>(futures.size());
 		// Check for exceptions
-		for (Future<Boolean> future : futures) {
+		for (java.util.concurrent.Future<T> future : futures) {
 			// Throws an exception if an exception was thrown by the task.
 			resultList.add(future.get());
 		}
 		// Validate the number of exec tasks
-		assertEquals(tasks.size(), futures.size());
-		return futures;
+		assertEquals(tasks.size(), resultList.size());
+		return resultList;
 	}
 
 }
