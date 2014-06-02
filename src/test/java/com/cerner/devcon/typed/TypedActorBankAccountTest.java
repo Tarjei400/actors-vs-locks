@@ -142,7 +142,7 @@ public class TypedActorBankAccountTest {
 
 				// Each client sends its workload to the ActorRef in nonblocking
 				// calls, so that they are executed in parallel.
-				for (int i = 0; i < taskCount / threadCount / 2; i++) {
+				for (int i = 0; i < taskCount / threadCount; i++) {
 
 					// Create two transfers, one in each direction
 					final BankAccountTransfer txfr = TypedActor.get(system)

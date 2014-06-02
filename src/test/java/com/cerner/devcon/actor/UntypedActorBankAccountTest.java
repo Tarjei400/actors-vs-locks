@@ -43,7 +43,6 @@ public class UntypedActorBankAccountTest {
 	final Timeout t = Timeout.durationToTimeout(d);
 
 	private static final int taskCount = 100000;
-	// numTellers must be a factor of taskCount / 2 for the work to be divided
 	private static final int numTellers = 1;
 
 	static ActorSystem system;
@@ -58,33 +57,50 @@ public class UntypedActorBankAccountTest {
 		JavaTestKit.shutdownActorSystem(system);
 	}
 
+	/**
+	 * An Actor that models a bank teller to create transfer transactions. The
+	 * test creates numTellers number of tellers and divides up the tasks
+	 * between them.
+	 * 
+	 */
 	public static class BankTeller extends UntypedActor {
 
 		LoggingAdapter log = Logging.getLogger(getContext().system(), self());
 
 		private final int tellerTxfrs = taskCount / numTellers;
 
-		private ActorRef accountA = getContext().actorOf(
-				BankAccount.props(1, 0));
-		private ActorRef accountB = getContext().actorOf(
-				BankAccount.props(2, 0));
+		private ActorRef accountA;
+		private ActorRef accountB;
 
 		private ActorRef probe;
 
+		/**
+		 * Keep track of the txfrs in progress
+		 */
 		private List<ActorRef> txfrs = new ArrayList<ActorRef>();
 		private int txfrCount = 0;
+
+		public BankTeller(ActorRef accountA, ActorRef accountB) {
+			this.accountA = accountA;
+			this.accountB = accountB;
+
+		}
 
 		public void onReceive(Object msg) {
 
 			if (msg.equals("start")) {
+				// start by depositing enough money in the account to cover the
+				// txfrs
 				accountA.tell(new BankAccount.Deposit(taskCount * 100),
 						getSelf());
 				probe.tell("started", getSelf());
 
 			} else if (msg.equals(BankAccount.TransactionStatus.DONE)) {
+				// once the initial deposit is done, fire off a transfer in each
+				// direction for all the tasks for this teller
 				log.info("deposit done");
 				probe.tell("deposited", getSelf());
-				for (int i = 0; i < tellerTxfrs / 2; i++) {
+				for (int i = 0; i < tellerTxfrs; i++) {
 					ActorRef txfr = getContext().actorOf(
 							Props.create(BankTransfer.class), "aToBtxfr" + i);
 
@@ -99,12 +115,14 @@ public class UntypedActorBankAccountTest {
 							getSelf());
 				}
 			} else if (msg.equals(BankTransfer.TransferStatus.DONE)) {
+				// every time a txfr finishes, remove it from the list and increment the count
 				log.debug("txfr done");
 				txfrs.remove(sender());
 				txfrCount++;
-				if (txfrCount % 100 == 0)
+				if (txfrCount % 1000 == 0)
 					log.info("Processed " + txfrCount + " txfrs");
-				if (txfrCount == tellerTxfrs) {
+				// when all txfrs are done, end the test
+				if (txfrCount == tellerTxfrs * 2) {
 					log.info("Processed all txfrs");
 					probe.tell("done", getSelf());
 				}
@@ -114,6 +132,7 @@ public class UntypedActorBankAccountTest {
 				probe = (ActorRef) msg;
 			} else {
 				log.error("unknown msg");
+				throw new RuntimeException("unknown msg");
 			}
 		}
 
@@ -178,22 +197,25 @@ public class UntypedActorBankAccountTest {
 		new JavaTestKit(system) {
 
 			{
-				final Props props = Props.create(BankTeller.class);
+
+				ActorRef accountA = system.actorOf(BankAccount.props(1, 0));
+				ActorRef accountB = system.actorOf(BankAccount.props(2, 0));
+
+				final Props props = Props.create(BankTeller.class, accountA,
+						accountB);
 
 				final Map<ActorRef, JavaTestKit> tellers = new HashMap<ActorRef, JavaTestKit>();
 
 				for (int i = 0; i < numTellers; i++) {
 					final ActorRef teller = system.actorOf(props);
 
-					// can also use JavaTestKit “from the outside”
+					// probe to track the test
 					final JavaTestKit probe = new JavaTestKit(system);
-					// “inject” the probe by passing it to the test subject
-					// like a real resource would be passed in production
 					teller.tell(probe.getRef(), getRef());
 					tellers.put(teller, probe);
 				}
 
-				// the run() method needs to finish within 3 seconds
+				// the run() method needs to finish within this amount of time
 				new Within(duration("1 minutes")) {
 					protected void run() {
 
@@ -214,8 +236,6 @@ public class UntypedActorBankAccountTest {
 						}
 
 						log.info("Executed all txfrs");
-						// Will wait for the rest of the 3 seconds
-						// expectNoMsg();
 					}
 				};
 			}
