@@ -1,7 +1,7 @@
 actors-vs-locks
 ==================
 
-Example code to go with Cerner DevCon 2014 presentation: http://prezi.com/00nclemgrlei/?utm_campaign=share&utm_medium=copy&rc=ex0share
+Example code to go with Cerner DevCon 2014 presentation: http://goo.gl/EyA3id
 
 Based on Akka http://akka.io
 
